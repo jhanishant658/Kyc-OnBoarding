@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = '/api/v1';
+const API_BASE = 'https://kyc-backend.onrender.com/api/v1';
 
 // Create an axios instance
 const api = axios.create({

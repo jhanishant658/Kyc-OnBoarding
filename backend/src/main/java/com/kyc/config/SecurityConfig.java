@@ -3,6 +3,7 @@ package com.kyc.config;
 import com.kyc.security.JwtAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -36,38 +37,83 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
         http
-            .csrf(csrf -> csrf.disable()) // Disabled for simplicity (API-only backend)
+            // Disable CSRF for API-based backend
+            .csrf(csrf -> csrf.disable())
+
+            // Enable CORS
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+            // Stateless session for JWT auth
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            )
+
             .authorizeHttpRequests(auth -> auth
+
+                // Allow preflight CORS requests
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                 // Public endpoints
                 .requestMatchers("/api/v1/auth/**").permitAll()
+
+                // H2 Console
                 .requestMatchers("/h2-console/**").permitAll()
+
                 // Reviewer-only endpoints
-                .requestMatchers("/api/v1/reviewer/**").hasAuthority("ROLE_REVIEWER")
+                .requestMatchers("/api/v1/reviewer/**")
+                .hasAuthority("ROLE_REVIEWER")
+
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )
-            // Allow H2 console to render in iframe (it uses frames)
-            .headers(headers -> headers.frameOptions(frame -> frame.disable()))
-            // Add our JWT filter before Spring's default username/password filter
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+            // Allow H2 console iframe
+            .headers(headers ->
+                headers.frameOptions(frame -> frame.disable())
+            )
+
+            // JWT filter
+            .addFilterBefore(
+                jwtAuthFilter,
+                UsernamePasswordAuthenticationFilter.class
+            );
 
         return http.build();
     }
 
-    // CORS config to allow React frontend (port 3000) to call the backend
+    /**
+     * CORS configuration
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("https://kyc-on-boarding.vercel.app", "http://localhost:3000"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+
+        config.setAllowedOriginPatterns(List.of(
+                "https://kyc-on-boarding.vercel.app",
+                "http://localhost:3000"
+        ));
+
+        config.setAllowedMethods(List.of(
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "OPTIONS"
+        ));
+
         config.setAllowedHeaders(List.of("*"));
+
         config.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
         source.registerCorsConfiguration("/**", config);
+
         return source;
     }
 
@@ -77,7 +123,10 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config
+    ) throws Exception {
+
         return config.getAuthenticationManager();
     }
 }
